@@ -1,0 +1,66 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+include config;
+
+/**
+ * beachConfig extends config and implements the configuration for 
+ * beach web server.
+ */
+class beachConfig : config
+{
+	// Config file name.
+	public configFileName = 'config/beach.cfg';
+	
+	/**
+	 * Constructor takes an optional config file path and name string 
+	 * for the location of the config file. If not provided the default 
+	 * location 'config/beach.cfg' is used.
+	 * @p ConfigFileName is a string with the config file to load.
+	 */
+	public beachConfig(string ConfigFileName = null)
+	{
+		if(ConfigFileName) { this.configFileName = ConfigFileName; }
+		this.setDefaults();
+	}
+	
+	/**
+	 * Loads the config. On success it returns a bool true and 
+	 * false on failure.
+	 * @r A bool with true for success or false for failure.
+	 */
+	public loadConfig()
+	{
+		try { this.load(this.configFileName); }
+		catch(e)
+		{
+			console.err("Beach - Failed to load config, exiting! Exception: " + e.getMessage());
+			return false;
+		}
+		return true;
+	}
+	
+	/**
+	 * Sets the default values for beach configuration.
+	 */
+	private setDefaults()
+	{
+		this.put('port', 8080);
+		this.put('showGettingStarted', true);
+		this.put('logFile', 'log/beach.log');
+		this.put('accessLogFile', 'log/access.log');
+	}
+}

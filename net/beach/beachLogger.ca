@@ -1,0 +1,101 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+include log;
+
+/**
+ * Logger implements normal application log levels error, warning, 
+ * debug and info (e, w, d, i methods). It also implements access 
+ * logging to a different file. Override these methods when extending 
+ * beach class to implement custom logging.
+ */
+class beachLogger
+{
+	l = null;
+	al = null;
+	
+	/**
+	 * Constructor takes the application log file name and the 
+	 * access log file name as arguments.
+	 * @p LogFile is a string with the file to log application entries to.
+	 * @p AccessLogFile is a string with the file to log access entries to.
+	 */
+	public beachLogger(string LogFile, string AccessLogFile)
+	{
+		this.l = new log(LogFile);
+		this.al = new log(AccessLogFile);
+	}
+	
+	/**
+	 * Logs a error message.
+	 * @p Message is a string with the content to log.
+	 * @r this
+	 */
+	public e(string Message) { this.l.e(Message); return this; }
+	
+	/**
+	 * Logs a warning message.
+	 * @p Message is a string with the content to log.
+	 * @r this
+	 */
+	public w(string Message) { this.l.w(Message); return this; }
+	
+	/**
+	 * Logs a debug message.
+	 * @p Message is a string with the content to log.
+	 * @r this
+	 */
+	public d(string Message) { this.l.d(Message); return this; }
+	
+	/**
+	 * Logs a info message.
+	 * @p Message is a string with the content to log.
+	 * @r this
+	 */
+	public i(string Message) { this.l.i(Message); return this; }
+	
+	/**
+	 * Logs access information with the provided httpServerRequest object.
+	 * @p Req is a httpServerRequest object to log.
+	 * @r this
+	 */
+	public logAccess(object Req, object Res)
+	{
+		msg = '';
+		
+		reqResource = Req.getPath()['toString'];
+		clientIp = Req.getClientAddress()['address'];
+		clientPort = Req.getClientAddress()['port'];
+		clientHost = Req.getClientAddress()['host'];
+		statusCode = Res.getCode();
+		referrer = '';
+		if(map.containsKey(Req.getHeader(), 'Referrer')) { referrer = Req.getHeader()['Referrer']; }
+		userAgent = '';
+		if(map.containsKey(Req.getHeader(), 'User-Agent')) { userAgent = Req.getHeader()['User-Agent']; }
+		locales = [];
+		for(loc : Req.getLocales()) { locales @= loc.getCountry() + '-' + loc.getLanguage(); }
+		
+		msg = "[" + clientIp + ":" + clientPort + "] (" + statusCode + ") ";
+		msg += "request=\"" + reqResource + "\" ";
+		msg += "referrer=\"" + referrer + "\" ";
+		msg += "userAgent=\"" + userAgent + "\" ";
+		msg += "locales=\"" + string.implode(locales, ',') + "\"";
+		
+		this.al.i(msg);
+		return this;
+	}
+	
+}

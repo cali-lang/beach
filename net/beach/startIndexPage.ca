@@ -1,0 +1,221 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+include reflect;
+
+include net.html.caliBs.bsPages;
+include net.html.caliBs.bsComponents;
+
+include net.beach.beachPage;
+
+class startIndexPage : beachStartPage
+{
+	srvr = null;
+	
+	public startIndexPage(object server)
+	{
+		this.srvr = server;
+		this.beachStartPage("Beach Web Server", "/startPage");
+		
+		this.getIntroSection();
+		this.getAboutSection();
+		this.getBeachInfo();
+		this.getSysInfo();
+		this.getModuleInfo();
+		this.getMimeTypes();
+	}
+	
+	private getIntroSection()
+	{
+		this.ctr.add(new _h4(new bsLabel('It Works!', bsDesc.normal)));
+		p = new _p();
+		p.text("
+		Beach web server is running.
+		");
+		this.ctr.add(p).br();
+	}
+	
+	private getAboutSection()
+	{
+		this.ctr.add(new _h4(new bsLabel('About', bsDesc.normal)));
+		p = new _p();
+		p.text("
+		Beach is a general purpose web server and Cali-Lang application 
+		server. Beach is licesed under the Apache 2 and source code is 
+		available at 
+		");
+		p.add((new _a('https://github.com/cali-lang/beach', new _text('https://github.com/cali-lang/beach'))).set('target', '_blank'));
+		p.text("
+		. Beach runs as a stand-alone web server or can be extended 
+		and customized to serve a specific application.
+		");
+		this.ctr.add(p).br();
+	}
+	
+	private getBeachInfo()
+	{
+		certFile = this.srvr.getCertFile();
+		numThreads = '' + this.srvr.getNumThreads();
+		acceptWs = '' + this.srvr.getAcceptWs();
+		numWsThreads = '' + this.srvr.getNumWsThreads();
+		numWsCons = '' + #this.srvr.getWsMap();
+		useSessions = '' + this.srvr.cfg.getBool('useSessions');
+		sessModule = '' + this.srvr.cfg.getString('sessionModule');
+		sessManager = '' + this.srvr.cfg.getString('sessionManager');
+		sessPreQueueSize = '' + this.srvr.cfg.getInt('preSessionQueueSize');
+		
+		this.ctr.add(new _h4(new bsLabel('Server Information', bsDesc.normal)));
+		
+		tbl = new kvTable();
+		tbl.tbody
+			.add(this.createRow('Beach Version:', this.srvr.beachVersion))
+			.add(this.createRow('Server Name:', this.srvr.serverName))
+			.add(this.createRow('Server Uptime:', this.getUptimeStr()))
+			.add(this.createRow('SSL Cert File:', certFile))
+			.add(this.createRow('Num Threads:', numThreads))
+			.add(this.createRow('Accept Websockets:', acceptWs))
+			.add(this.createRow('Num Websocket Threads: ', numWsThreads))
+			.add(this.createRow('Num Websocket Cons: ', numWsCons))
+			.add(this.createRow('Use Sessions: ', useSessions))
+			.add(this.createRow('Sess Module: ', sessModule))
+			.add(this.createRow('Sess Mgr Class: ', sessManager))
+			.add(this.createRow('Sess Pre-Q Size: ', sessPreQueueSize))
+		;
+		this.ctr.add(tbl).br();
+	}
+	
+	private getMimeTypes()
+	{
+		this.ctr.add(new _h4(new bsLabel('MIME Types', bsDesc.normal)));
+		
+		tbl = new kvTable();
+		for(mime : this.srvr.mtypes)
+		{
+			tbl.tbody.add(this.createRow(mime, this.srvr.mtypes[mime]));
+		}
+		
+		this.ctr.add(tbl).br();
+	}
+	
+	private getSysInfo()
+	{
+		this.ctr.add(new _h4(new bsLabel('System Information', bsDesc.normal)));
+		
+		tbl = new kvTable();
+		tbl.tbody
+			.add(this.createRow('OS Arch:', sys.getOsArch()))
+			.add(this.createRow('OS Name:', sys.getOsName()))
+			.add(this.createRow('OS Version:', sys.getOsVersion()))
+			.add(this.createRow('OS File Separator:', sys.getFileSeparator()))
+			.add(this.createRow('Java Version:', sys.getJavaVersion()))
+			.add(this.createRow('Java Vendor:', sys.getJavaVendor()))
+			.add(this.createRow('Java: Vendor URL:', sys.getJavaVendorUrl()))
+			.add(this.createRow('Java Class Path:', sys.getJavaClassPath()))
+			.add(this.createRow('Cali Version:', sys.getCaliVersion()))
+			.add(this.createRow('Cali Assembly:', sys.getAssembly()))
+			.add(this.createRow('Cali Assembly Path:', sys.getAssemblyPath()))
+		;
+		this.ctr.add(tbl).br();
+	}
+	
+	private getModuleInfo()
+	{
+		this.ctr.add(new _h4(new bsLabel('Loaded Cali-Lang Modules', bsDesc.normal)));
+		
+		tbl = new bsTable();
+		tbl.setHover();
+		tbl.setCondensed();
+
+		// Create table head section and add it to the table.
+		thead = new bsThead();
+		tbl.add(thead);
+
+		// Create table head row and add to head.
+		hrow = new bsTr();
+		hrow.add(new bsTh('Module'));
+		thead.add(hrow);
+
+		// Create table body section and add to table.
+		tbody = new bsTbody();
+		tbl.add(tbody);
+		
+		modules = list.sort(reflect.loadedModules());
+		for(mod : modules)
+		{
+			row = new bsTr();
+			row.add(new bsTd(new _text(mod)));
+			tbody.add(row);
+		}
+		
+		this.ctr.add(tbl).br();
+	}
+	
+	private createRow(Key, Value)
+	{
+		row = new bsTr();
+		row.add(new bsTd(new _text(Key))).add(new bsTd(new _text(Value)));
+		return row;
+	}
+	
+	/**
+	 * Get/format the server uptime.
+	 * @r A string with the formatted uptime in d h m s.
+	 */
+	private getUptimeStr()
+	{
+		elapsed = ((new date()).getTime() - this.srvr.startTimeMills)/1000;
+		
+		days = elapsed/86400;
+		elapsed = elapsed%86400;
+		
+		hours = elapsed/3600;
+		elapsed = elapsed%3600;
+		
+		minutes = elapsed/60;
+		elapsed = elapsed%60;
+		
+		seconds = elapsed;
+		
+		return days + " days, " + hours + " hours, " + minutes + " minutes, " + seconds + " seconds";
+	}
+}
+
+class kvTable : bsTable
+{
+	public tbody = null;
+	
+	public kvTable()
+	{
+		this.bsTable();
+		
+		// Set mouse hover and condensed.
+		this.setHover();
+		this.setCondensed();
+
+		// Create table head section and add it to the table.
+		thead = new bsThead();
+		this.add(thead);
+
+		// Create table head row and add to head.
+		hrow = new bsTr();
+		hrow.add(new bsTh('Key')).add(new bsTh('Value'));
+		thead.add(hrow);
+
+		// Create table body section and add to table.
+		this.tbody = new bsTbody();
+		this.add(this.tbody);
+	}
+}

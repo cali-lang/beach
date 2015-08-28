@@ -1,0 +1,91 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+include net.html.caliBs.caliBs;
+include net.catjs.catjs;
+include file;
+
+class beachPage : bsPage
+{
+	favIconPath = 'beach/img';
+	
+	public beachPage(string Title, string FavIconPath = null)
+	{
+		// Call bsPage constructor with page title.
+		this.bsPage(Title);
+		
+		if(FavIconPath) { this.favIconPath = FavIconPath; }
+		// Set favicon icons.
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-57x57.png')).set('sizes', '57x57'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-60x60.png')).set('sizes', '60x60'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-72x72.png')).set('sizes', '72x72'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-76x76.png')).set('sizes', '76x76'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-114x114.png')).set('sizes', '114x114'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-120x120.png')).set('sizes', '120x120'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-144x144.png')).set('sizes', '144x144'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-152x152.png')).set('sizes', '152x152'));
+		this.head.add((new _link('apple-touch-icon', '', this.favIconPath + '/apple-touch-icon-180x180.png')).set('sizes', '180x180'));
+		this.head.add((new _link('icon', 'image/png', this.favIconPath + '/favicon-32x32.png')).set('sizes', '32x32'));
+		this.head.add((new _link('icon', 'image/png', this.favIconPath + '/android-chrome-192x192.png')).set('sizes', '192x192'));
+		this.head.add((new _link('icon', 'image/png', this.favIconPath + '/favicon-96x96.png')).set('sizes', '96x96'));
+		this.head.add((new _link('icon', 'image/png', this.favIconPath + '/favicon-16x16.png')).set('sizes', '16x16'));
+		this.head.add(new _link('manifest', '', this.favIconPath + '/manifest.json'));
+		this.head.add(new _meta('msapplication-TileColor', '#da532c'));
+		this.head.add(new _meta('msapplication-TileImage', '/mstile-144x144.png'));
+		this.head.add(new _meta('theme-color', '#ffffff'));
+		
+		ts = (new _script()).set('src', 'js/catjs.js');
+		this.jsScripts @= ts;
+		
+		ts = (new _script()).set('src', 'js/caliBs.js');
+		this.jsScripts @= ts;
+	}
+
+}
+
+class beachStartPage : beachPage
+{
+	// Container content.
+	ctr = null;
+	
+	public beachStartPage(string Title, string TopPageName)
+	{
+		this.beachPage(Title);
+		
+		// Create a new navbar with the caliBs icon that links to root.
+		nbar = new bsNavBar(new bsBrand('beach/img/beachLogo.png'), '/startPage');
+		nbar.setFixedTop(true);
+		
+		// This is currnetly needed to have bootstrap properly format fixed to top navbar.
+		this.setFixedTopNav();
+		
+		// About
+		if(TopPageName == "/startPage") { nbar.addMenuItem(new bsMenuItem(new _a('/startPage', new _text('Home')), true)); }
+		else { nbar.addMenuItem(new bsMenuItem(new _a('/startPage', new _text('Home')))); }
+		
+		// Getting Started
+		if(TopPageName == "/startGettingStarted") { nbar.addMenuItem(new bsMenuItem(new _a('/startGettingStarted', new _text('Getting Started')), true)); }
+		else { nbar.addMenuItem(new bsMenuItem(new _a('/startGettingStarted', new _text('Getting Started')))); }
+		
+		// Add the navbar to the body of the page.
+		this.body.add(nbar);
+		
+		// Create a new bootstrap container div (defined in bsComponents).
+		this.ctr = new bsContainer();
+		this.ctr.set('id', 'container');
+		this.body.add(this.ctr);
+	}
+}

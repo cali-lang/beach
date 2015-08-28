@@ -1,0 +1,190 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+include net.html.caliBs.bsPages;
+include net.html.caliBs.bsComponents;
+
+include net.beach.beachPage;
+
+class startGettingStarted : beachStartPage
+{	
+	public startGettingStarted(object server)
+	{
+		this.beachStartPage("Beach Web Server", "/startGettingStarted");
+		
+		this.getIntroSection();
+		this.getExtendingSection();
+	}
+	
+	private getIntroSection()
+	{
+		this.ctr.add(new _h4(new bsLabel("Stand Alone Server", bsDesc.normal)));
+		p = new _p();
+		p.text("
+		Beach web server can be ran in a stand-alone mode where you 
+		can serve files from the public_html directory without writing 
+		a single line of code. You'll still want to have a look at the 
+		config page and make changes for your application if necessary. 
+		Outside of that you just need to run the server.ca file.
+		");
+		this.ctr.add(p).br();
+		
+		this.ctr.add(new bsPre(new _text(
+"""
+shell> cali server.ca
+Beach: Launching web server.
+Beach - Loading config from 'config/beach.cfg'.
+Beach: Initializing logging service.
+Beach: Switching output to logging service.
+"""
+		))).br();
+		
+		this.ctr.add((new _p()).text("
+		There are two log files access.log and beach.log located within 
+		the log directory. The access.log file keeps record of each 
+		request to the server. It records time, client IP and port, 
+		the requested resource, the referrer if set, the user agent, 
+		the HTTP status code (200), and the locale. The beach.log 
+		records various messages having to do with the application 
+		itself. The level of each message can be error, warning, info, 
+		and debug. Here's an example of what you should expect to see 
+		when first starting up the server.
+		")).br();
+		
+		this.ctr.add(new bsPre(new _text(
+"""
+[2015-08-16 17:39:33 844] INFO :: Launching web server.
+[2015-08-16 17:39:33 845] INFO :: Loading config from 'config/beach.cfg'.
+[2015-08-16 17:39:33 845] INFO :: Initializing logging service.
+[2015-08-16 17:39:33 846] INFO :: Switching output to logging service.
+[2015-08-16 17:39:33 847] INFO :: Loading mime types ...
+[2015-08-16 17:39:33 848] INFO :: Set mime type 'avi' to 'video/avi'.
+[2015-08-16 17:39:33 848] INFO :: Set mime type 'bmp' to 'image/bmp'.
+[2015-08-16 17:39:33 849] INFO :: Set mime type 'bz2' to 'application/x-bzip2'.
+[2015-08-16 17:39:33 849] INFO :: Set mime type 'css' to 'text/css'.
+...
+[2015-08-16 17:39:33 864] INFO :: Set mime type 'txt' to 'text/plain'.
+[2015-08-16 17:39:33 864] INFO :: Set mime type 'wav' to 'audio/wav'.
+[2015-08-16 17:39:33 864] INFO :: Set mime type 'xml' to 'application/xml'.
+[2015-08-16 17:39:33 864] INFO :: Set mime type 'zip' to 'application/zip'.
+[2015-08-16 17:39:33 865] INFO :: Starting Beach web server on port 8080 ...
+"""
+		))).br();
+	}
+	
+	private getExtendingSection()
+	{
+		this.ctr.add(new _h4(new bsLabel("Extending Beach", bsDesc.normal)));
+		
+		this.ctr.add((new _p()).text("
+		Beach can also be extended by simply sub-classing the beach class. 
+		The stand-alone server file server.ca does this and simply starts 
+		the server. Aside from modifying the beach source code itself, 
+		methods can be overriden and some classes can be set in the 
+		config. The most basic form of extending is to add handlers to 
+		the server to handle various endpoints.
+		")).br();
+		
+		this.ctr.add((new _p()).text("
+		Below is a modified version of server.ca. We've added a 
+		indexHandler method that takes req, res and sess objects. We 
+		also added a line to the server constructor that sets the 
+		handler for our root (/) page to call the new indexHandler 
+		method. Within the indexHandler method we set the return 
+		content-type to text, and then set the result content to 
+		a hello world string. If you run the code below and then 
+		point your web browser to http://localhost:8080/ you'll find 
+		the hello world string.
+		")).br();
+		
+		this.ctr.add(new bsPre(new _text(
+"""
+include net.beach.beach;
+
+/**
+ * Test server instance extends beach server.
+ */
+class server : beach
+{
+	/**
+	 * Main program entry point. Creates a new server 
+	 * object and then launches it.
+	 */
+	public main(args)
+	{
+		s = new server();
+		s.launch();
+	}
+	
+	/**
+	 * Server constructor.
+	 */
+	public server()
+	{
+		this.beach();
+		
+		// Set the root handler.
+		this.setHandler('/', ::'indexHandler');
+	}
+	
+	/**
+	 * Our custom hander for the root (/) index page.
+	 */
+	public indexHandler(object req, object res, object sess = null)
+	{
+		res.setValue('Content-Type', 'text/plain');
+		res.setContent('Hello World! Requested Resource: ' + req.getPath()['toString']);
+	}
+}
+"""
+		))).br();
+		
+		
+		this.ctr.add((new _p()).text("
+		Beach is packaged with caliBs, the cali-lang bootstrap library. 
+		The code below uses that library and creates a hello world page 
+		using bootstrap and the jumbotron style. The modified version 
+		of our indexHandler method now creates a bootstrap page, a 
+		bootstrap container, a jumbotron object and then sends the 
+		HTML to the browser.
+		")).br();
+		
+		this.ctr.add(new bsPre(new _text(
+"""
+	/**
+	 * Our custom hander for the root (/) index page.
+	 */
+	public indexHandler(object req, object res, object sess = null)
+	{
+		pg = new bsPage("Fancy Hello World");
+		
+		// Create a new bootstrap container.
+		ctr = new bsContainer();
+		
+		// Add a new jumbotron object to the container.
+		ctr.add(new bsJumbo("Hello World!"));
+		
+		// Add the container to the page.
+		pg.add(ctr);
+		
+		// Convert the page to html and send to browser.
+		res.setContent(pg.toString());
+	}
+"""
+		))).br();
+		
+	}
+}

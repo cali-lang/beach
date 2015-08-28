@@ -1,0 +1,628 @@
+/*
+ * Copyright 2015 Austin Lehman
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Standard cali-lang includes.
+include sys;
+include file;
+include console;
+include net.httpServer;
+include reflect;
+
+// Beach includes.
+include net.beach.beachConfig;
+include net.beach.beachLogger;
+include net.beach.beachError;
+include net.beach.beachSession;
+include net.beach.startIndexPage;
+include net.beach.startGettingStarted;
+
+/**
+ * Beach is a simple stand-alone HTTP/HTTPS server. It features 
+ * basic logging and session handling. It can be used as is to serve 
+ * files from the public_html directory or can be extended.
+ */
+class beach : httpServer, beachLogger
+{
+	// Beach version
+	public beachVersion = "0.8";
+
+	// Server name ... set in constructor.
+	public serverName = null;
+	
+	// Server start time mills
+	public startTimeMills = null;
+	
+	// Server config.
+	public cfg = null;
+	
+	// Mime types
+	public mtypes = {};
+	
+	// Session manager
+	public sessions = null;
+	
+	// Defines custom handlers.
+	public handlers = {};
+	
+	/*********************************************************************************
+	 * Public methods.
+	 ********************************************************************************/
+	/**
+	 * Beach server constructor.
+	 */
+	public beach()
+	{
+		// Set server name and call httpServer constructor with port and handle method.
+		this.serverName = 'Beach/1.0 (' + sys.getCaliVersion() + ', Simple 4.0)';
+		
+		// Instantiate config.
+		this.cfg = new beachConfig();
+	}
+	
+	/**
+	 * Launch performs all initialization of the web server, starts the 
+	 * server and blocks until shutdown or fatal exception.
+	 */
+	public launch()
+	{
+		console.info("Beach: Launching web server.");
+		
+		// Get server configuration.
+		console.info("Beach - Loading config from '" + this.cfg.configFileName + "'.");
+		success = this.cfg.loadConfig();
+		
+		// Start loggers.
+		if(success) { success = this.startLogging(); }
+		
+		// Load mime types
+		if(success) { success = this.loadMimeTypes(); }
+		
+		// Set SSL support if set in config.
+		if(success) { success = this.setupSslSupport(); }
+		
+		// Setup session support if set in config.
+		if(success && this.cfg.getBool('useSessions')) { success = this.setupSessions(); }
+		
+		if(success)
+		{
+			// Call parent constructor.
+			this.i("Starting Beach web server on port " + this.cfg.getInt('port') + " ...");
+			this.httpServer(this.cfg.getInt('port'), ::'handle');
+			
+			// Start the actual server.
+			this.start();
+			
+			// Set server start time mills
+			this.startTimeMills = (new date()).getTime();
+			
+			// Block this thread.
+			while(true) { sys.sleep(1000); }
+		}
+	}
+	
+	/**
+	 * Sets the handler method for the provided path. One can add custom 
+	 * handler methods for any path.
+	 * @p Path is a string with the path element to match. (ex: /someDir/someResource)
+	 * @p OnCall is a callback object to call when the path is matched.
+	 * @r this
+	 */
+	public setHandler(string Path, callback OnCall) { this.handlers[Path] = OnCall; return this; }
+	
+	/**
+	 * Gets the handler callback object for the provided path if it exists.
+	 * @p Path is a string with the path element to lookup.
+	 * @r A callback object for the provided path or null if not found.
+	 */
+	public getHandler(string Path) { if(map.containsKey(Path)) { return this.handlers[Path]; } else { return null; } }
+	
+	/**
+	 * Public method for saving (storing) a session.
+	 * @p Sess is a session object to store.
+	 * @r this
+	 */
+	public saveSession(object Sess)
+	{
+		if(this.cfg.getBool('useSessions') && this.sessions)
+		{
+			this.sessions.saveSession(Sess);
+		}
+		else
+		{
+			throw "Call to saveSession but either sessions are not being used or the session handler is null.";
+		}
+		return this;
+	}
+	
+	/**
+	 * Public method for removing a session.
+	 * @p Sess is a session object to remove.
+	 * @r this
+	 */
+	public removeSession(object Sess)
+	{
+		if(this.cfg.getBool('useSessions') && this.sessions)
+		{
+			this.sessions.removeSession(Sess);
+		}
+		else
+		{
+			throw "Call to removeSession but either sessions are not being used or the session handler is null.";
+		}
+		return this;
+	}
+	
+	/**
+	 * Redirects the browser to a different page.
+	 * @p res is the httpServerResponse object provided by the container.
+	 * @p Target is a string with the URL to redirect to.
+	 * @r this
+	 */
+	public redirect(object res, string Target)
+	{
+		res.setCode(302);
+		res.setValue('Location', Target);
+		res.setContent('');
+		return this;
+	}
+	
+	/*********************************************************************************
+	 * Private methods.
+	 ********************************************************************************/
+	
+	/**
+	 * Sets up application and access logging. See beachLogger.ca for details.
+	 * @r A boolean with true for success or false for failure.
+	 */
+	private startLogging()
+	{
+		success = true;
+		
+		console.info("Beach: Initializing logging service.");
+		try
+		{
+			this.beachLogger(this.cfg.getString('logFile'), this.cfg.getString('accessLogFile'));
+		}
+		catch(e)
+		{
+			success = false;
+			console.info("Beach: Failed to initialize logging service, exiting! Exception: " + e.getMessage());
+		}
+		
+		if(success)
+		{
+			console.info("Beach: Switching output to logging service.");
+			
+			// Add current messages to logger.
+			this.i("Launching web server.");
+			this.i("Loading config from '" + this.cfg.configFileName + "'.");
+			this.i("Initializing logging service.");
+			this.i("Switching output to logging service.");
+		}
+		
+		// If we have showGettingStarted = true, then add handlers.
+		if(success && this.cfg.getBool('showGettingStarted'))
+		{
+			this.addGettingStartedHandlers();
+		}
+		
+		return success;
+	}
+	
+	/**
+	 * Loads mime types set in server config into memory for use 
+	 * with files served from public_html folder.
+	 * @r A bool with true for success or false for failure.
+	 */
+	private loadMimeTypes()
+	{
+		success = true;
+		
+		this.i("Loading mime types ...");
+		mlist = this.cfg.getList('mimeType');
+		for(mstr : mlist)
+		{
+			pair = string.explode(mstr, '->');
+			if(#pair == 2)
+			{
+				key = string.trim(pair[0]);
+				val = string.trim(pair[1]);
+				this.mtypes[key] = val;
+				this.i("Set mime type '" + key + "' to '" + val + "'.");
+			}
+			else
+			{
+				success = false;
+				this.e("Failed to load mime type '" + mstr + "'. Exiting!");
+				break;
+			}
+		}
+		
+		return success;
+	}
+	
+	/**
+	 * Sets up SSL support for the server. Looks for the cert file and 
+	 * password and if found sets the server to use them.
+	 * @r A bool with true for success or false for failure.
+	 */
+	private setupSslSupport()
+	{
+		success = true;
+		
+		certFile = this.cfg.getString('httpsCertFile');
+		certPass = this.cfg.getString('httpsCertPassword');
+		
+		if(certFile)
+		{
+			if(certPass)
+			{
+				if(!path.exists(certFile))
+				{
+					success = false;
+					this.e("SSL cert file provided in config (httpsCertFile) but can't be found. Exiting!");
+				}
+				else
+				{
+					this.i("SSL configuration found. Setting server to use SSL/HTTPS.");
+					this.setCertFile(certFile);
+					this.setCertPassword(certPass);
+				}
+			}
+			else
+			{
+				success = false;
+				this.e("SSL cert file provided in config (httpsCertFile) but missing password (httpsCertPassword). Exiting!");
+			}
+		}
+		else if(certPass)
+		{
+			success = false;
+			this.e("SSL cert password provided in config (httpsCertPassword) but missing cert file (httpsCertFile). Exiting!");
+		}
+		
+		return success;
+	}
+	
+	/**
+	 * Checks the session settings from the config file. Attempts to 
+	 * load the session module and instantiate and destroy a session 
+	 * object.
+	 * @r A bool with true for success or false for failure.
+	 */
+	private setupSessions()
+	{
+		success = true;
+		
+		this.i("Sessions are being used. Setting up session support ...");
+		
+		if(!this.getCertFile() || !this.getCertPassword())
+		{
+			this.e("Session support requires HTTPS. Exiting.");
+			return false;
+		}
+		
+		if(!this.cfg.get('defaultSessionTimeoutSeconds'))
+		{
+			this.w("Sessions are enabled but no default timeout is set. (defaultSessionTimeoutSeconds) Using application default of 600 seconds.");
+			this.cfg.put('defaultSessionTimeoutSeconds', 600);
+		}
+		
+		if(!this.cfg.get('sessionModule'))
+		{
+			this.w("Session module not defined. (sessionModule) Using application default value of net.beach.beachSession.");
+			this.cfg.put('sessionModule', 'net.beach.beachSession');
+		}
+		
+		if(!this.cfg.get('sessionManager'))
+		{
+			this.w("Session manager class not defined. (sessionManager) Using application default value of sessionManager.");
+			this.cfg.put('sessionManager', 'sessionManager');
+		}
+		
+		if(!this.cfg.get('preSessionQueueSize'))
+		{
+			this.w("Pre-session queue size not defined. (preSessionQueueSize) Using application default value of 100.");
+			this.cfg.put('preSessionQueueSize', 100);
+		}
+		
+		// Attempt to load the module
+		try
+		{
+			reflect.includeModule(this.cfg.get('sessionModule'));
+			if(reflect.isModuleLoaded(this.cfg.get('sessionModule')))
+			{
+				this.i("Successfully loaded session module '" + this.cfg.get('sessionModule') + "'.");
+				
+				// Attempt to instantiate the session manager object.
+				this.sessions = reflect.instantiate(this.cfg.get('sessionManager'));
+				reflect.invoke(this.sessions, this.cfg.get('sessionManager'), this.cfg.getInt('preSessionQueueSize'));
+			}
+			else
+			{
+				this.e("Failed to load session module '" + this.cfg.get('sessionModule') + "', module not found!");
+				success = false;
+			}
+		}
+		catch(e)
+		{
+			this.e("Failed to load session module '" + this.cfg.get('sessionModule') + "'! Exception:\n" + e.getStackTrace());
+			success = false;
+		}
+		
+		if(success)
+		{
+			// Test session class instantiation.
+			try
+			{
+				testSess = this.sessions.get('0.0.0.0', uuid.get());
+				this.sessions.removeSession(testSess.getId());
+			}
+			catch(e)
+			{
+				this.e("Failed to create test session for class '" + this.cfg.get('sessionModule') + "'! Exception:\n" + e.getStackTrace());
+				success = false;
+			}
+		}
+		
+		if(success)
+		{
+			this.i("Successfully initialized sessions. Using module '" + this.cfg.get('sessionModule') + "' and session manager class '" + this.cfg.get('sessionManager') + "'.");
+		}
+		else
+		{
+			this.e("Failed to initialize sessions! Exiting.");
+		}
+		
+		
+		return success;
+	}
+	
+	/**
+	 * Handles all server requests. It sets the base HTTP header information 
+	 * and gets the requested path. It checks the path to see if the path starts 
+	 * with any set public paths to serve plain files. If not found it calls handleHandlers 
+	 * to look for a set handler. If still not found it sends the 404 error page. If 
+	 * an exception happens anywhere in the process it sends a 500 internal server error 
+	 * response.
+	 * @p req is the httpServerRequest object provided by the container.
+	 * @p res is the httpServerResponse object provided by the container.
+	 */
+	private handle(object req, object res)
+	{
+		// Set the base HTTP header information.
+		this.setBaseHeaderInfo(res);
+		
+		sess = null;
+		if(this.cfg.getBool('useSessions')) { sess = this.getSession(req, res); }
+		
+		try
+		{
+			pname = req.getPath()['toString'];
+			handled = this.handleHandlers(pname, req, res, sess);
+			if(!handled) { handled = this.handlePublicHtml(pname, req, res); }
+			if(!handled) { handled = this.handleLookForIndex(pname, req, res, sess); }
+		}
+		catch(e)
+		{
+			// Something bad happened, send 500.
+			this.e("Unhandled Exception: " + e.getMessage());
+			this.sendError(500, req, res);
+		}
+		
+		// If not found, lets send 404 page.
+		if(!handled) { this.sendError(404, req, res); }
+		
+		// Log the access request.
+		this.logAccess(req, res);
+	}
+	
+	/**
+	 * Sets the server name, date and last modified parts of the HTTP 
+	 * response header.
+	 * @p res is the httpServerResponse object provided by the container.
+	 */
+	private setBaseHeaderInfo(object res)
+	{
+		// Server time mills.
+		tm = (new date()).getTime();
+		
+		// HTTP header info.
+		res.setValue('Server', this.serverName);
+		res.setValue('Date', tm);
+		res.setValue('Last-Modified', tm);
+	}
+	
+	/**
+	 * Gets or creates a new session if useSessions is set to true. If 
+	 * useSessions is set to false a call to this method will throw an 
+	 * exception. If there's no session set a new one is created. To check 
+	 * if a new one has been created call isNew() method on the returned 
+	 * session object. This method handles setting/getting the csessionid 
+	 * cookie used to manage sessions. This method shouldn't be called from 
+	 * extended code, it is called internally by beach and the session is 
+	 * handed to the handler method.
+	 * @p req is the httpServerRequest object provided by the container.
+	 * @p res is the httpServerResponse object provided by the container.
+	 * @r A session object.
+	 */
+	private getSession(object req, object res)
+	{
+		if(this.cfg.getBool('useSessions'))
+		{
+			sess = null;
+			sessid = null;
+			
+			cookies = req.getCookies();
+			for(key : cookies)
+			{
+				cookie = cookies[key];
+				if(cookie.getName() == 'csessionid')
+				{
+					sess = this.sessions.get(req.getClientAddress()['address'], cookie.getValue());
+					sessid = sess.getId();
+				}
+			}
+			
+			if(!sess)
+			{
+				sessid = uuid.get();
+				sess = this.sessions.get(req.getClientAddress()['address'], sessid);
+			}
+			
+			if(sess)
+			{
+				cchip = new httpCookie('csessionid', sessid);
+				if(this.cfg.getInt('defaultSessionTimeoutSeconds') > 0)
+				{
+					cchip.setExpiry(this.cfg.getInt('defaultSessionTimeoutSeconds'));
+				}
+				cchip.setProtected(true);
+				cchip.setSecure(true);
+				res.setCookie(cchip);
+			}
+			
+			return sess;
+		}
+		else
+		{
+			throw "beach.getSession(): Call made to getSession but useSessions is set to false. Check the beach config file for useSessions.";
+		}
+	}
+	
+	/**
+	 * Calls the proper handler for the provided path. When the callback 
+	 * is called the req and res objects are passed to the method.
+	 * @p PathName is a string with the path for the handler.
+	 * @p req is the httpServerRequest object provided by the container.
+	 * @p res is the httpServerResponse object provided by the container.
+	 * @p session is a session object if sessions are being used or null if not.
+	 * @r A bool with true for handled and false for not.
+	 */
+	private handleHandlers(string PathName, object req, object res, object session = null)
+	{
+		handled = false;
+		
+		if(map.containsKey(this.handlers, PathName))
+		{
+			handled = true;
+			lang.call(this.handlers[PathName], req, res, session);
+		}
+		
+		return handled;
+	}
+	
+	/**
+	 * Looks for the requested resource in the public_html/ directory 
+	 * and if found serves it. It will also set the mime type if found 
+	 * in the mime type config. If mime type is set and contains text/ 
+	 * then the file is served as text.
+	 * @p PathName is a string with the path to look for.
+	 * @p req is the httpServerRequest object provided by the container.
+	 * @p res is the httpServerResponse object provided by the container.
+	 * @r A bool with true for handled and false for not.
+	 */
+	private handlePublicHtml(string PathName, object req, object res)
+	{
+		handled = false;
+		
+		fname = 'public_html' + PathName;
+		
+		if(string.trim(PathName) != '/' && path.exists(fname))
+		{
+			ext = path.getExt(fname);
+			mtype = null;
+			if(map.containsKey(this.mtypes, ext))
+			{
+				mtype = this.mtypes[ext];
+				res.setValue('Content-Type', mtype);
+			}
+			
+			if(mtype && string.contains(string.toLower(mtype), 'text/'))
+			{
+				res.setContent(file.read(fname));
+			}
+			else
+			{
+				res.writeContent(file.readBinary(fname));
+			}
+			handled = true;
+		}
+		
+		return handled;
+	}
+	
+	/**
+	 * This method checks for '/' path, and if found tries to find an 
+	 * index page to serve. It will first look for /index in handlers. 
+	 * If still no page found and showGettingStarted = true then it will 
+	 * serve /startPage.
+	 * @p PathName is a string with the path to look for.
+	 * @p req is the httpServerRequest object provided by the container.
+	 * @p res is the httpServerResponse object provided by the container.
+	 * @p session is a session object if sessions are being used or null if not.
+	 * @r A bool with true for handled and false for not.
+	 */
+	private handleLookForIndex(string PathName, object req, object res, object session = null)
+	{
+		handled = false;
+		
+		if(PathName == '/')
+		{
+			if(map.containsKey(this.handlers, '/index'))
+			{
+				handled = true;
+				lang.call(this.handlers['/index'], req, res);
+			}
+			else if(this.cfg.getBool('showGettingStarted') && map.containsKey(this.handlers, '/startPage'))
+			{
+				handled = true;
+				lang.call(this.handlers['/startPage'], req, res);
+			}
+		}
+		
+		return handled;
+	}
+	
+	/**
+	 * Sets the response code and then writes the page content for the 
+	 * error page to the response.
+	 * @p ErrCode is a  int with the HTTP error code.
+	 */
+	private sendError(int ErrCode, object req, object res)
+	{
+		res.setCode(ErrCode);
+		res.setValue('Content-Type', 'text/html');
+		if(ErrCode == 404) { res.setContent((new error404(req.getPath()['toString'])).toString()); }
+		else { res.setContent((new error500()).toString()); }
+	}
+	
+	/**
+	 * If set in the config, this method adds the getting started 
+	 * handlers to the server.
+	 */
+	private addGettingStartedHandlers()
+	{
+		this.setHandler('/startPage', ::'startIndex');
+		this.setHandler('/startGettingStarted', ::'startGettingStarted');
+	}
+	
+	/*********************************************************************************
+	 * Getting started handlers.
+	 ********************************************************************************/
+	private startIndex(object req, object res, object session = null) { res.setContent((new startIndexPage(this)).toString()); }
+	private startGettingStarted(object req, object res, object session = null) { res.setContent((new startGettingStarted(this)).toString()); }
+}
