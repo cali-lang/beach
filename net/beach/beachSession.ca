@@ -259,11 +259,11 @@ class sessionManager : lock
  */
 class beachSession
 {
-	id = null;
-	created = null;
-	isNew = true;
-	ipAddress = null;
-	userName = null;
+	public id = null;
+	public created = null;
+	public isNew = true;
+	public ipAddress = null;
+	public userName = null;
 	
 	params = {};
 	
