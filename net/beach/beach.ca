@@ -57,6 +57,9 @@ class beach : httpServer, beachLogger
 	// Defines custom handlers.
 	public handlers = {};
 	
+	// Before handle callback.
+	private beforeHandle = null;
+	
 	/*********************************************************************************
 	 * Public methods.
 	 ********************************************************************************/
@@ -71,6 +74,13 @@ class beach : httpServer, beachLogger
 		// Instantiate config.
 		this.cfg = new beachConfig();
 	}
+	
+	/**
+	 * Set a pre handler for all calls.
+	 * @p BeforeHandle is a callback to call before the normal handler.
+	 * @r this
+	 */
+	public setBeforeHandle(BeforeHandle = null) { this.beforeHandle = BeforeHandle; return this; }
 	
 	/**
 	 * Launch performs all initialization of the web server, starts the 
@@ -409,22 +419,28 @@ class beach : httpServer, beachLogger
 		sess = null;
 		if(this.cfg.getBool('useSessions')) { sess = this.getSession(req, res); }
 		
-		try
-		{
-			pname = req.getPath()['toString'];
-			handled = this.handleHandlers(pname, req, res, sess);
-			if(!handled) { handled = this.handlePublicHtml(pname, req, res); }
-			if(!handled) { handled = this.handleLookForIndex(pname, req, res, sess); }
-		}
-		catch(e)
-		{
-			// Something bad happened, send 500.
-			this.e("Unhandled Exception: " + e.getMessage());
-			this.sendError(500, req, res);
-		}
+		run = true;
+		if(this.beforeHandle != null) { run = lang.call(this.beforeHandle, req, res, sess); }
 		
-		// If not found, lets send 404 page.
-		if(!handled) { this.sendError(404, req, res); }
+		if(run)
+		{
+			try
+			{
+				pname = req.getPath()['toString'];
+				handled = this.handleHandlers(pname, req, res, sess);
+				if(!handled) { handled = this.handlePublicHtml(pname, req, res); }
+				if(!handled) { handled = this.handleLookForIndex(pname, req, res, sess); }
+			}
+			catch(e)
+			{
+				// Something bad happened, send 500.
+				this.e("Unhandled Exception: " + e.getMessage());
+				this.sendError(500, req, res);
+			}
+			
+			// If not found, lets send 404 page.
+			if(!handled) { this.sendError(404, req, res); }
+		}
 		
 		// Log the access request.
 		this.logAccess(req, res);
